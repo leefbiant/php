@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Log;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Redis;
 use App\Models\NewsLive;
+use App\Library\UploadClient;
 
 class news_live extends Command
 {
@@ -16,6 +17,7 @@ class news_live extends Command
      * @var string
      */
     protected $signature = 'news_live:jinse';
+    protected $down_tmp_path = '/var/www/http_api/tmp_images';
 
     /**
      * The console command description.
@@ -69,7 +71,6 @@ class news_live extends Command
         }
       }
       Log::debug("max top_id:", [$max_id]);
-      // Log::debug("jinse http res json_decode:" , $res);
 
       foreach($res["list"][0]["lives"] as $node) {
         try {
@@ -102,11 +103,39 @@ class news_live extends Command
             foreach($node['images'] as $imgs) {
               if (isset($imgs['url']) && !empty($imgs['url'])) {
                 $img = $imgs['url'];
+                $down_file = "";
+                $this->DownloadFile($img, $down_file);
+                if ($down_file) {
+                  $upfile_mgr = new UploadClient([
+                    'url' => 'http://ali-test1/1h3479ewxq/staticUpload',
+                    'port' => 3000,
+                  ]);
+                  $img = $upfile_mgr->one($down_file);
+                  Log::info("upload file:" . $img);
+                }
+                if ($img) {
+                  $img = "https://static.icostreet.cn" . $img;
+                }
                 break;
               }
             }
           }
-          $news_info->image_link = $img; 
+          // $img = "https://img.jinse.com/902563_rate.png";
+          // $down_file = "";
+          // $this->DownloadFile($img, $node['id'], $down_file);
+          // if ($down_file) {
+          //   $upfile_mgr = new UploadClient([
+          //     'url' => 'http://ali-test1/1h3479ewxq/staticUpload',
+          //     'port' => 3000,
+          //   ]);
+          //   $img = $upfile_mgr->one($down_file);
+          //   Log::info("upload file:" . $img);
+          // }
+          // if ($img) {
+          //   $img = "https://static.icostreet.cn" . $img;
+          // }
+
+          $news_info->image_link = $img;
           $news_info->save();
         } catch (\Exception $err) {
           Log::error("Exception-----" . $err->getMessage());
@@ -139,6 +168,29 @@ class news_live extends Command
       $title = trim($title, " \t\r\n");
       $content = trim($content, " \t\r\n");
       return;
+    }
+
+    function DownloadFile($images_url, $id, &$down_file) {
+      try {
+        $file_name = strrchr($images_url, '/');
+        if (!$file_name) return;
+        $down_file = $this->down_tmp_path . $file_name;
+        if (file_exists($down_file)) {
+          $ext = $this->get_extension($file_name);
+          $down_file = $this->down_tmp_path . "/" . (string)$id . "_" . (string)time() . "." . $ext;
+        }
+        $res = (new Client())->get($images_url);
+        $fp = fopen($down_file, "w");
+        fwrite($fp, $res->getBody()->getContents());
+        fclose($fp);
+        Log::info("download file:" . $down_file);
+      } catch (\Exception $err) {
+        Log::error("Exception-----" . $err->getMessage());
+      }
+    }
+
+    function get_extension($filename){
+        return pathinfo($filename,PATHINFO_EXTENSION);
     }
 
     public function GetLastNewsId() {

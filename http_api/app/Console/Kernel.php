@@ -28,8 +28,13 @@ class Kernel extends ConsoleKernel
         // $schedule->command('inspire')
         //          ->hourly();
 
+      // $schedule->command('news_live:jinse')
+      //   ->timezone('Asia/Shanghai')
+      //   ->everyFiveMinutes();
+
       $schedule->command('news_live:jinse')
         ->timezone('Asia/Shanghai')
+        // ->everyMinute();
         ->everyFiveMinutes();
     }
 
